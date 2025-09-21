@@ -22,6 +22,8 @@ import java.nio.charset.StandardCharsets;
 import java.util.Base64;
 import java.util.List;
 import java.util.ArrayList;
+import javax.net.ssl.HttpsURLConnection;
+import javax.net.ssl.SSLException;
 
 /**
  * HumHubAuthenticator: Handles login form rendering, local Keycloak password
@@ -251,6 +253,17 @@ public class HumHubAuthenticator implements Authenticator, AuthenticatorFactory 
         try {
             URL url = URI.create(HUMHUB_API_URL).toURL();
             HttpURLConnection conn = (HttpURLConnection) url.openConnection();
+            
+            // Configure HTTPS certificate validation if using HTTPS
+            if (conn instanceof HttpsURLConnection) {
+                HttpsURLConnection httpsConn = (HttpsURLConnection) conn;
+                // Enable default hostname verification
+                httpsConn.setHostnameVerifier(HttpsURLConnection.getDefaultHostnameVerifier());
+                // Use default SSL socket factory (validates certificates)
+                httpsConn.setSSLSocketFactory(HttpsURLConnection.getDefaultSSLSocketFactory());
+                log("HUMHUB: HTTPS certificate validation enabled");
+            }
+            
             try {
                 conn.setConnectTimeout(HTTP_CONNECT_TIMEOUT_MS);
                 conn.setReadTimeout(HTTP_READ_TIMEOUT_MS);
@@ -289,6 +302,9 @@ public class HumHubAuthenticator implements Authenticator, AuthenticatorFactory 
                 // Ensure connection is always closed
                 conn.disconnect();
             }
+        } catch (SSLException e) {
+            logError("HUMHUB: SSL/TLS certificate validation failed - this may indicate a security issue or misconfigured HTTPS", e);
+            return null;
         } catch (Exception e) {
             logError("HUMHUB: Exception during HumHub communication", e);
             return null;
