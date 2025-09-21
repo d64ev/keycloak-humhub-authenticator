@@ -82,10 +82,6 @@ public class HumHubAuthenticator implements Authenticator, AuthenticatorFactory 
             return password;
         }
 
-        public boolean isCredential() {
-            return true;
-        }
-
         @Override
         public String getCredentialId() {
             return null;
@@ -343,26 +339,7 @@ public class HumHubAuthenticator implements Authenticator, AuthenticatorFactory 
      * Updates the user's password credential using the Keycloak API (Keycloak 21+).
      */
     private void updateUserPassword(UserModel user, String plainPassword) {
-        CredentialInput passwordInput = new CredentialInput() {
-            @Override
-            public String getType() {
-                return PasswordCredentialModel.TYPE;
-            }
-
-            @Override
-            public String getChallengeResponse() {
-                return plainPassword;
-            }
-
-            public boolean isCredential() {
-                return true;
-            }
-
-            @Override
-            public String getCredentialId() {
-                return null;
-            }
-        };
+        CredentialInput passwordInput = new PasswordInput(plainPassword);
         user.credentialManager().updateCredential(passwordInput);
         log("HUMHUB: Updated password credential for user " + user.getUsername());
     }
