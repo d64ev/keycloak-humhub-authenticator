@@ -23,12 +23,12 @@ import java.util.List;
 import java.util.ArrayList;
 
 /**
- * HumHubAuthenticator: Handles login form rendering, local Keycloak password check,
- * fallback to HumHub API, and on-demand user import/sync.
+ * HumHubAuthenticator: Handles login form rendering, local Keycloak password
+ * check, fallback to HumHub API, and on-demand user import/sync.
  *
  * Usage:
- *  - Set as REQUIRED in the authentication flow.
- *  - Remove "Username Password Form" from the flow.
+ * - Set as REQUIRED in the authentication flow.
+ * - Remove "Username Password Form" from the flow.
  */
 public class HumHubAuthenticator implements Authenticator, AuthenticatorFactory {
 
@@ -39,13 +39,18 @@ public class HumHubAuthenticator implements Authenticator, AuthenticatorFactory 
 
     // Logging utilities
     private static void log(String msg) {
-        if (LOG_ENABLED) logger.warn(msg);
+        if (LOG_ENABLED)
+            logger.warn(msg);
     }
+
     private static void logf(String fmt, Object... args) {
-        if (LOG_ENABLED) logger.warnf(fmt, args);
+        if (LOG_ENABLED)
+            logger.warnf(fmt, args);
     }
+
     private static void logError(String msg, Throwable t) {
-        if (LOG_ENABLED) logger.error(msg, t);
+        if (LOG_ENABLED)
+            logger.error(msg, t);
     }
 
     private static final String HUMHUB_API_URL = "https://your-humhub-instance/api/v1/auth/current";
@@ -56,22 +61,41 @@ public class HumHubAuthenticator implements Authenticator, AuthenticatorFactory 
     private static final int HTTP_READ_TIMEOUT_MS = 5000;
 
     /**
-     * CredentialInput implementation for plain password checks in Keycloak's credentialManager().isValid()
+     * CredentialInput implementation for plain password checks in Keycloak's
+     * credentialManager().isValid()
      */
     public static class PasswordInput implements CredentialInput {
         private final String password;
-        public PasswordInput(String password) { this.password = password; }
-        @Override public String getType() { return CredentialModel.PASSWORD; }
-        @Override public String getChallengeResponse() { return password; }
-        public boolean isCredential() { return true; }
-        @Override public String getCredentialId() { return null; }
+
+        public PasswordInput(String password) {
+            this.password = password;
+        }
+
+        @Override
+        public String getType() {
+            return CredentialModel.PASSWORD;
+        }
+
+        @Override
+        public String getChallengeResponse() {
+            return password;
+        }
+
+        public boolean isCredential() {
+            return true;
+        }
+
+        @Override
+        public String getCredentialId() {
+            return null;
+        }
     }
 
     /**
      * Main authentication logic:
-     *  - Renders login form if no credentials are POSTed yet.
-     *  - Tries local Keycloak credentials first.
-     *  - Falls back to HumHub API if local fails. Imports or syncs user as needed.
+     * - Renders login form if no credentials are POSTed yet.
+     * - Tries local Keycloak credentials first.
+     * - Falls back to HumHub API if local fails. Imports or syncs user as needed.
      */
     @Override
     public void authenticate(AuthenticationFlowContext context) {
@@ -148,27 +172,79 @@ public class HumHubAuthenticator implements Authenticator, AuthenticatorFactory 
     }
 
     // --- Authenticator SPI ---
-    @Override public boolean requiresUser() { return false; }
-    @Override public boolean configuredFor(KeycloakSession session, RealmModel realm, UserModel user) { return true; }
-    @Override public void setRequiredActions(KeycloakSession session, RealmModel realm, UserModel user) {}
-    @Override public void close() {}
-    @Override public boolean isUserSetupAllowed() { return false; }
-    @Override public String getDisplayType() { return "HumHub Authenticator"; }
-    @Override public String getReferenceCategory() { return "humhub-auth"; }
-    @Override public boolean isConfigurable() { return false; }
+    @Override
+    public boolean requiresUser() {
+        return false;
+    }
+
+    @Override
+    public boolean configuredFor(KeycloakSession session, RealmModel realm, UserModel user) {
+        return true;
+    }
+
+    @Override
+    public void setRequiredActions(KeycloakSession session, RealmModel realm, UserModel user) {
+    }
+
+    @Override
+    public void close() {
+    }
+
+    @Override
+    public boolean isUserSetupAllowed() {
+        return false;
+    }
+
+    @Override
+    public String getDisplayType() {
+        return "HumHub Authenticator";
+    }
+
+    @Override
+    public String getReferenceCategory() {
+        return "humhub-auth";
+    }
+
+    @Override
+    public boolean isConfigurable() {
+        return false;
+    }
+
     @Override
     public AuthenticationExecutionModel.Requirement[] getRequirementChoices() {
         return new AuthenticationExecutionModel.Requirement[] {
-            AuthenticationExecutionModel.Requirement.ALTERNATIVE,
-            AuthenticationExecutionModel.Requirement.REQUIRED
+                AuthenticationExecutionModel.Requirement.ALTERNATIVE,
+                AuthenticationExecutionModel.Requirement.REQUIRED
         };
     }
-    @Override public String getHelpText() { return "Authenticator for Keycloak/HumHub hybrid login, on-demand user import, and credential sync."; }
-    @Override public List<ProviderConfigProperty> getConfigProperties() { return new ArrayList<>(); }
-    @Override public Authenticator create(KeycloakSession session) { return this; }
-    @Override public void init(org.keycloak.Config.Scope config) {}
-    @Override public void postInit(KeycloakSessionFactory factory) {}
-    @Override public String getId() { return "humhub-authenticator"; }
+
+    @Override
+    public String getHelpText() {
+        return "Authenticator for Keycloak/HumHub hybrid login, on-demand user import, and credential sync.";
+    }
+
+    @Override
+    public List<ProviderConfigProperty> getConfigProperties() {
+        return new ArrayList<>();
+    }
+
+    @Override
+    public Authenticator create(KeycloakSession session) {
+        return this;
+    }
+
+    @Override
+    public void init(org.keycloak.Config.Scope config) {
+    }
+
+    @Override
+    public void postInit(KeycloakSessionFactory factory) {
+    }
+
+    @Override
+    public String getId() {
+        return "humhub-authenticator";
+    }
 
     /**
      * Authenticates against the HumHub REST API and parses user info if successful.
@@ -186,17 +262,16 @@ public class HumHubAuthenticator implements Authenticator, AuthenticatorFactory 
                 String encoded = Base64.getEncoder().encodeToString(auth.getBytes(StandardCharsets.UTF_8));
                 conn.setRequestProperty("Authorization", "Basic " + encoded);
                 conn.setRequestProperty("Accept", "application/json");
-                
+
                 int status = conn.getResponseCode();
                 logf("HUMHUB: HumHub HTTP status: %d", status);
-                
+
                 // Use appropriate stream based on response status
-                try (InputStream is = (status == HttpURLConnection.HTTP_OK) 
-                        ? conn.getInputStream() 
+                try (InputStream is = (status == HttpURLConnection.HTTP_OK)
+                        ? conn.getInputStream()
                         : conn.getErrorStream();
-                     BufferedReader reader = new BufferedReader(new InputStreamReader(
-                         is != null ? is : conn.getInputStream(), StandardCharsets.UTF_8))) {
-                    
+                        BufferedReader reader = new BufferedReader(new InputStreamReader(
+                                is != null ? is : conn.getInputStream(), StandardCharsets.UTF_8))) {
                     StringBuilder sb = new StringBuilder();
                     String line;
                     while ((line = reader.readLine()) != null) {
@@ -204,7 +279,7 @@ public class HumHubAuthenticator implements Authenticator, AuthenticatorFactory 
                     }
                     String body = sb.toString();
                     logf("HUMHUB: API response: %s", body);
-                    
+
                     if (status == HttpURLConnection.HTTP_OK) {
                         JsonNode node = objectMapper.readTree(body);
                         return HumHubUser.fromJson(node);
@@ -230,7 +305,8 @@ public class HumHubAuthenticator implements Authenticator, AuthenticatorFactory 
     private UserModel importUser(AuthenticationFlowContext context, HumHubUser humHubUser, String plainPassword) {
         RealmModel realm = context.getRealm();
         KeycloakSession session = context.getSession();
-        UserModel user = session.users().addUser(realm, humHubUser.guid != null && !humHubUser.guid.isEmpty() ? humHubUser.guid : null);
+        UserModel user = session.users().addUser(realm,
+                humHubUser.guid != null && !humHubUser.guid.isEmpty() ? humHubUser.guid : null);
         user.setUsername(humHubUser.username);
         user.setEmail(humHubUser.email);
         user.setFirstName(humHubUser.firstname);
@@ -267,10 +343,24 @@ public class HumHubAuthenticator implements Authenticator, AuthenticatorFactory 
      */
     private void updateUserPassword(UserModel user, String plainPassword) {
         CredentialInput passwordInput = new CredentialInput() {
-            @Override public String getType() { return CredentialModel.PASSWORD; }
-            @Override public String getChallengeResponse() { return plainPassword; }
-            public boolean isCredential() { return true; }
-            @Override public String getCredentialId() { return null; }
+            @Override
+            public String getType() {
+                return CredentialModel.PASSWORD;
+            }
+
+            @Override
+            public String getChallengeResponse() {
+                return plainPassword;
+            }
+
+            public boolean isCredential() {
+                return true;
+            }
+
+            @Override
+            public String getCredentialId() {
+                return null;
+            }
         };
         user.credentialManager().updateCredential(passwordInput);
         log("HUMHUB: Updated password credential for user " + user.getUsername());
