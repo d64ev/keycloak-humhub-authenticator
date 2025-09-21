@@ -229,7 +229,7 @@ public class HumHubAuthenticator implements Authenticator, AuthenticatorFactory 
 
     @Override
     public Authenticator create(KeycloakSession session) {
-        return this;
+        return new HumHubAuthenticator();
     }
 
     @Override
