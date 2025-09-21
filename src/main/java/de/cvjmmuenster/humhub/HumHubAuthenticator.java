@@ -13,9 +13,13 @@ import org.keycloak.provider.ProviderConfigProperty;
 import org.keycloak.models.UserCredentialModel;
 
 import java.io.BufferedReader;
+import java.io.IOException;
 import java.io.InputStream;
 import java.io.InputStreamReader;
 import java.net.HttpURLConnection;
+import java.net.MalformedURLException;
+import java.net.ProtocolException;
+import java.net.SocketTimeoutException;
 import java.net.URI;
 import java.net.URL;
 import java.nio.charset.StandardCharsets;
@@ -24,6 +28,7 @@ import java.util.List;
 import java.util.ArrayList;
 import javax.net.ssl.HttpsURLConnection;
 import javax.net.ssl.SSLException;
+import com.fasterxml.jackson.core.JsonProcessingException;
 
 /**
  * HumHubAuthenticator: Handles login form rendering, local Keycloak password
@@ -253,7 +258,7 @@ public class HumHubAuthenticator implements Authenticator, AuthenticatorFactory 
         try {
             URL url = URI.create(HUMHUB_API_URL).toURL();
             HttpURLConnection conn = (HttpURLConnection) url.openConnection();
-            
+
             // Configure HTTPS certificate validation if using HTTPS
             if (conn instanceof HttpsURLConnection) {
                 HttpsURLConnection httpsConn = (HttpsURLConnection) conn;
@@ -263,7 +268,7 @@ public class HumHubAuthenticator implements Authenticator, AuthenticatorFactory 
                 httpsConn.setSSLSocketFactory(HttpsURLConnection.getDefaultSSLSocketFactory());
                 log("HUMHUB: HTTPS certificate validation enabled");
             }
-            
+
             try {
                 conn.setConnectTimeout(HTTP_CONNECT_TIMEOUT_MS);
                 conn.setReadTimeout(HTTP_READ_TIMEOUT_MS);
@@ -303,10 +308,24 @@ public class HumHubAuthenticator implements Authenticator, AuthenticatorFactory 
                 conn.disconnect();
             }
         } catch (SSLException e) {
-            logError("HUMHUB: SSL/TLS certificate validation failed - this may indicate a security issue or misconfigured HTTPS", e);
+            logError(
+                    "HUMHUB: SSL/TLS certificate validation failed - this may indicate a security issue or misconfigured HTTPS",
+                    e);
             return null;
-        } catch (Exception e) {
-            logError("HUMHUB: Exception during HumHub communication", e);
+        } catch (SocketTimeoutException e) {
+            logError("HUMHUB: Connection timeout - HumHub server may be unreachable or overloaded", e);
+            return null;
+        } catch (MalformedURLException e) {
+            logError("HUMHUB: Invalid HumHub API URL configuration: " + HUMHUB_API_URL, e);
+            return null;
+        } catch (ProtocolException e) {
+            logError("HUMHUB: HTTP protocol error during HumHub communication", e);
+            return null;
+        } catch (JsonProcessingException e) {
+            logError("HUMHUB: Failed to parse JSON response from HumHub API", e);
+            return null;
+        } catch (IOException e) {
+            logError("HUMHUB: I/O error during HumHub communication", e);
             return null;
         }
     }
