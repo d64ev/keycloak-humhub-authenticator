@@ -51,6 +51,10 @@ public class HumHubAuthenticator implements Authenticator, AuthenticatorFactory 
     private static final String HUMHUB_API_URL = "https://your-humhub-instance/api/v1/auth/current";
     private static final ObjectMapper objectMapper = new ObjectMapper();
 
+    // HTTP connection timeouts
+    private static final int HTTP_CONNECT_TIMEOUT_MS = 5000;
+    private static final int HTTP_READ_TIMEOUT_MS = 5000;
+
     /**
      * CredentialInput implementation for plain password checks in Keycloak's credentialManager().isValid()
      */
@@ -174,33 +178,44 @@ public class HumHubAuthenticator implements Authenticator, AuthenticatorFactory 
         try {
             URL url = new URL(HUMHUB_API_URL);
             HttpURLConnection conn = (HttpURLConnection) url.openConnection();
-            conn.setConnectTimeout(5000);
-            conn.setReadTimeout(5000);
-            conn.setRequestMethod("GET");
-            String auth = login + ":" + password;
-            String encoded = Base64.getEncoder().encodeToString(auth.getBytes(StandardCharsets.UTF_8));
-            conn.setRequestProperty("Authorization", "Basic " + encoded);
-            conn.setRequestProperty("Accept", "application/json");
-            int status = conn.getResponseCode();
-            logf("HUMHUB: HumHub HTTP status: %d", status);
-            InputStream is = (status == HttpURLConnection.HTTP_OK)
-                    ? conn.getInputStream()
-                    : conn.getErrorStream();
-            try (BufferedReader reader = new BufferedReader(new InputStreamReader(is, StandardCharsets.UTF_8))) {
-                StringBuilder sb = new StringBuilder();
-                String line;
-                while ((line = reader.readLine()) != null) {
-                    sb.append(line).append("\n");
+            try {
+                conn.setConnectTimeout(HTTP_CONNECT_TIMEOUT_MS);
+                conn.setReadTimeout(HTTP_READ_TIMEOUT_MS);
+                conn.setRequestMethod("GET");
+                String auth = login + ":" + password;
+                String encoded = Base64.getEncoder().encodeToString(auth.getBytes(StandardCharsets.UTF_8));
+                conn.setRequestProperty("Authorization", "Basic " + encoded);
+                conn.setRequestProperty("Accept", "application/json");
+                
+                int status = conn.getResponseCode();
+                logf("HUMHUB: HumHub HTTP status: %d", status);
+                
+                // Use appropriate stream based on response status
+                try (InputStream is = (status == HttpURLConnection.HTTP_OK) 
+                        ? conn.getInputStream() 
+                        : conn.getErrorStream();
+                     BufferedReader reader = new BufferedReader(new InputStreamReader(
+                         is != null ? is : conn.getInputStream(), StandardCharsets.UTF_8))) {
+                    
+                    StringBuilder sb = new StringBuilder();
+                    String line;
+                    while ((line = reader.readLine()) != null) {
+                        sb.append(line).append("\n");
+                    }
+                    String body = sb.toString();
+                    logf("HUMHUB: API response: %s", body);
+                    
+                    if (status == HttpURLConnection.HTTP_OK) {
+                        JsonNode node = objectMapper.readTree(body);
+                        return HumHubUser.fromJson(node);
+                    } else {
+                        logf("HUMHUB: HumHub authentication failed for '%s': %s", login, body);
+                        return null;
+                    }
                 }
-                String body = sb.toString();
-                logf("HUMHUB: API response: %s", body);
-                if (status == HttpURLConnection.HTTP_OK) {
-                    JsonNode node = objectMapper.readTree(body);
-                    return HumHubUser.fromJson(node);
-                } else {
-                    logf("HUMHUB: HumHub authentication failed for '%s': %s", login, body);
-                    return null;
-                }
+            } finally {
+                // Ensure connection is always closed
+                conn.disconnect();
             }
         } catch (Exception e) {
             logError("HUMHUB: Exception during HumHub communication", e);
