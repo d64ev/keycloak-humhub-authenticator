@@ -12,21 +12,16 @@ import org.keycloak.models.credential.PasswordCredentialModel;
 import org.keycloak.provider.ProviderConfigProperty;
 import org.keycloak.models.UserCredentialModel;
 
-import java.io.BufferedReader;
 import java.io.IOException;
-import java.io.InputStream;
-import java.io.InputStreamReader;
-import java.net.HttpURLConnection;
-import java.net.MalformedURLException;
-import java.net.ProtocolException;
-import java.net.SocketTimeoutException;
 import java.net.URI;
-import java.net.URL;
+import java.net.http.HttpClient;
+import java.net.http.HttpRequest;
+import java.net.http.HttpResponse;
 import java.nio.charset.StandardCharsets;
+import java.time.Duration;
 import java.util.Base64;
 import java.util.List;
 import java.util.ArrayList;
-import javax.net.ssl.HttpsURLConnection;
 import javax.net.ssl.SSLException;
 import com.fasterxml.jackson.core.JsonProcessingException;
 
@@ -67,6 +62,11 @@ public class HumHubAuthenticator implements Authenticator, AuthenticatorFactory 
     // HTTP connection timeouts
     private static final int HTTP_CONNECT_TIMEOUT_MS = 5000;
     private static final int HTTP_READ_TIMEOUT_MS = 5000;
+
+    // HTTP client with configured timeouts and SSL validation
+    private static final HttpClient httpClient = HttpClient.newBuilder()
+            .connectTimeout(Duration.ofMillis(HTTP_CONNECT_TIMEOUT_MS))
+            .build();
 
     /**
      * CredentialInput implementation for plain password checks in Keycloak's
@@ -256,70 +256,44 @@ public class HumHubAuthenticator implements Authenticator, AuthenticatorFactory 
     private HumHubUser authenticateWithHumHub(String login, String password) {
         logf("HUMHUB: Calling HumHub API for login '%s'...", login);
         try {
-            URL url = URI.create(HUMHUB_API_URL).toURL();
-            HttpURLConnection conn = (HttpURLConnection) url.openConnection();
+            // Create HTTP request with Basic Auth
+            String auth = login + ":" + password;
+            String encoded = Base64.getEncoder().encodeToString(auth.getBytes(StandardCharsets.UTF_8));
 
-            // Configure HTTPS certificate validation if using HTTPS
-            if (conn instanceof HttpsURLConnection) {
-                HttpsURLConnection httpsConn = (HttpsURLConnection) conn;
-                // Enable default hostname verification
-                httpsConn.setHostnameVerifier(HttpsURLConnection.getDefaultHostnameVerifier());
-                // Use default SSL socket factory (validates certificates)
-                httpsConn.setSSLSocketFactory(HttpsURLConnection.getDefaultSSLSocketFactory());
-                log("HUMHUB: HTTPS certificate validation enabled");
-            }
+            HttpRequest request = HttpRequest.newBuilder()
+                    .uri(URI.create(HUMHUB_API_URL))
+                    .timeout(Duration.ofMillis(HTTP_READ_TIMEOUT_MS))
+                    .header("Authorization", "Basic " + encoded)
+                    .header("Accept", "application/json")
+                    .GET()
+                    .build();
 
-            try {
-                conn.setConnectTimeout(HTTP_CONNECT_TIMEOUT_MS);
-                conn.setReadTimeout(HTTP_READ_TIMEOUT_MS);
-                conn.setRequestMethod("GET");
-                String auth = login + ":" + password;
-                String encoded = Base64.getEncoder().encodeToString(auth.getBytes(StandardCharsets.UTF_8));
-                conn.setRequestProperty("Authorization", "Basic " + encoded);
-                conn.setRequestProperty("Accept", "application/json");
+            log("HUMHUB: HTTPS certificate validation enabled (default HttpClient behavior)");
 
-                int status = conn.getResponseCode();
-                logf("HUMHUB: HumHub HTTP status: %d", status);
+            // Send request and get response
+            HttpResponse<String> response = httpClient.send(request, HttpResponse.BodyHandlers.ofString());
 
-                // Use appropriate stream based on response status
-                try (InputStream is = (status == HttpURLConnection.HTTP_OK)
-                        ? conn.getInputStream()
-                        : conn.getErrorStream();
-                        BufferedReader reader = new BufferedReader(new InputStreamReader(
-                                is != null ? is : conn.getInputStream(), StandardCharsets.UTF_8))) {
-                    StringBuilder sb = new StringBuilder();
-                    String line;
-                    while ((line = reader.readLine()) != null) {
-                        sb.append(line).append("\n");
-                    }
-                    String body = sb.toString();
-                    logf("HUMHUB: API response: %s", body);
+            int status = response.statusCode();
+            String body = response.body();
 
-                    if (status == HttpURLConnection.HTTP_OK) {
-                        JsonNode node = objectMapper.readTree(body);
-                        return HumHubUser.fromJson(node);
-                    } else {
-                        logf("HUMHUB: HumHub authentication failed for '%s': %s", login, body);
-                        return null;
-                    }
-                }
-            } finally {
-                // Ensure connection is always closed
-                conn.disconnect();
+            logf("HUMHUB: HumHub HTTP status: %d", status);
+            logf("HUMHUB: API response: %s", body);
+
+            if (status == 200) {
+                JsonNode node = objectMapper.readTree(body);
+                return HumHubUser.fromJson(node);
+            } else {
+                logf("HUMHUB: HumHub authentication failed for '%s': %s", login, body);
+                return null;
             }
         } catch (SSLException e) {
             logError(
                     "HUMHUB: SSL/TLS certificate validation failed - this may indicate a security issue or misconfigured HTTPS",
                     e);
             return null;
-        } catch (SocketTimeoutException e) {
-            logError("HUMHUB: Connection timeout - HumHub server may be unreachable or overloaded", e);
-            return null;
-        } catch (MalformedURLException e) {
-            logError("HUMHUB: Invalid HumHub API URL configuration: " + HUMHUB_API_URL, e);
-            return null;
-        } catch (ProtocolException e) {
-            logError("HUMHUB: HTTP protocol error during HumHub communication", e);
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt(); // Restore interrupted status
+            logError("HUMHUB: Request was interrupted", e);
             return null;
         } catch (JsonProcessingException e) {
             logError("HUMHUB: Failed to parse JSON response from HumHub API", e);
