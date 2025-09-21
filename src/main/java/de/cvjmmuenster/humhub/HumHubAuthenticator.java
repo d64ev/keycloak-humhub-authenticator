@@ -16,6 +16,7 @@ import java.io.BufferedReader;
 import java.io.InputStream;
 import java.io.InputStreamReader;
 import java.net.HttpURLConnection;
+import java.net.URI;
 import java.net.URL;
 import java.nio.charset.StandardCharsets;
 import java.util.Base64;
@@ -252,7 +253,7 @@ public class HumHubAuthenticator implements Authenticator, AuthenticatorFactory 
     private HumHubUser authenticateWithHumHub(String login, String password) {
         logf("HUMHUB: Calling HumHub API for login '%s'...", login);
         try {
-            URL url = new URL(HUMHUB_API_URL);
+            URL url = URI.create(HUMHUB_API_URL).toURL();
             HttpURLConnection conn = (HttpURLConnection) url.openConnection();
             try {
                 conn.setConnectTimeout(HTTP_CONNECT_TIMEOUT_MS);
