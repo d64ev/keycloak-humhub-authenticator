@@ -7,8 +7,8 @@ import org.keycloak.authentication.AuthenticationFlowContext;
 import org.keycloak.authentication.Authenticator;
 import org.keycloak.authentication.AuthenticatorFactory;
 import org.keycloak.credential.CredentialInput;
-import org.keycloak.credential.CredentialModel;
 import org.keycloak.models.*;
+import org.keycloak.models.credential.PasswordCredentialModel;
 import org.keycloak.provider.ProviderConfigProperty;
 import org.keycloak.models.UserCredentialModel;
 
@@ -74,7 +74,7 @@ public class HumHubAuthenticator implements Authenticator, AuthenticatorFactory 
 
         @Override
         public String getType() {
-            return CredentialModel.PASSWORD;
+            return PasswordCredentialModel.TYPE;
         }
 
         @Override
@@ -346,7 +346,7 @@ public class HumHubAuthenticator implements Authenticator, AuthenticatorFactory 
         CredentialInput passwordInput = new CredentialInput() {
             @Override
             public String getType() {
-                return CredentialModel.PASSWORD;
+                return PasswordCredentialModel.TYPE;
             }
 
             @Override
