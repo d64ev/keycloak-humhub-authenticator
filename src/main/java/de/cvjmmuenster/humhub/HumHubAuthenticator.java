@@ -107,7 +107,7 @@ public class HumHubAuthenticator implements Authenticator, AuthenticatorFactory 
 
         String login = context.getHttpRequest().getDecodedFormParameters().getFirst("username");
         String password = context.getHttpRequest().getDecodedFormParameters().getFirst("password");
-        logf("HUMHUB: login='%s'", login, (password == null ? "NO" : "YES"));
+        logf("HUMHUB: login='%s', password='%s'", login, (password == null ? "NO" : "YES"));
 
         // 1. No credentials yet: render login form
         if (login == null || password == null) {
